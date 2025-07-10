@@ -1,0 +1,76 @@
+{
+  "cities": {
+    "delhi": {
+      "name": "Delhi",
+      "iata": "DEL",
+      "country": "India",
+      "aliases": ["new delhi", "ndls", "del"]
+    },
+    "mumbai": {
+      "name": "Mumbai",
+      "iata": "BOM",
+      "country": "India",
+      "aliases": ["bombay", "bom"]
+    },
+    "bangalore": {
+      "name": "Bangalore",
+      "iata": "BLR",
+      "country": "India",
+      "aliases": ["bengaluru", "blr"]
+    },
+    "hyderabad": {
+      "name": "Hyderabad",
+      "iata": "HYD",
+      "country": "India",
+      "aliases": ["hyd"]
+    },
+    "chennai": {
+      "name": "Chennai",
+      "iata": "MAA",
+      "country": "India",
+      "aliases": ["madras", "maa"]
+    },
+    "kolkata": {
+      "name": "Kolkata",
+      "iata": "CCU",
+      "country": "India",
+      "aliases": ["calcutta", "ccu"]
+    },
+    "dubai": {
+      "name": "Dubai",
+      "iata": "DXB",
+      "country": "UAE",
+      "aliases": ["dxb"]
+    },
+    "abu_dhabi": {
+      "name": "Abu Dhabi",
+      "iata": "AUH",
+      "country": "UAE",
+      "aliases": ["auh"]
+    },
+    "london": {
+      "name": "London",
+      "iata": "LHR",
+      "country": "UK",
+      "aliases": ["heathrow", "lhr"]
+    },
+    "new_york": {
+      "name": "New York",
+      "iata": "JFK",
+      "country": "USA",
+      "aliases": ["jfk", "nyc"]
+    },
+    "singapore": {
+      "name": "Singapore",
+      "iata": "SIN",
+      "country": "Singapore",
+      "aliases": ["sin"]
+    },
+    "bangkok": {
+      "name": "Bangkok",
+      "iata": "BKK",
+      "country": "Thailand",
+      "aliases": ["bkk"]
+    }
+  }
+} 

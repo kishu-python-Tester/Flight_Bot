@@ -1,0 +1,188 @@
+Product Requirements Document (PRD)
+Project Name: Chatbot-Based Flight Booking Assistant
+Version: 1.0
+Author: Ravi Kishore G
+Date: 30-06-2025
+
+1. Objective
+Develop an intelligent chatbot powered by a Large Language Model (LLM) that can understand user intent and guide them through the process of flight booking. The chatbot should conduct natural conversations, extract key booking details, and invoke backend APIs to complete the booking process.
+
+2. Scope
+This PRD covers the chatbot’s functionality from:
+
+Initial user interaction
+
+Intent detection (via LLM)
+
+Multi-turn conversation to collect booking details
+
+Triggering APIs for flight search and booking
+
+Confirming the ticket booking
+
+3. LLM-Based Intent Detection & Dialogue
+3.1 LLM Capabilities
+Task	Description
+Intent Classification	Detect whether the user wants to book a flight, hotel, etc.
+Slot Extraction	Extract source, destination, dates, passengers
+Dialogue Flow	Handle dynamic conversations, clarifications, and confirmations
+Fallback Management	Gracefully respond to unclear inputs
+
+3.2 Example Interaction Flow
+plaintext
+Copy
+Edit
+User: I want to fly to Dubai  
+Bot: Sure! May I know your departure city?  
+User: From Hyderabad  
+Bot: Got it. What’s your travel date?  
+User: July 10  
+Bot: How many passengers?  
+User: Just me  
+Bot: Here's what I have:
+{
+  "intent": "book_flight",
+  "source": "Hyderabad",
+  "destination": "Dubai",
+  "date": "2025-07-10",
+  "passengers": {
+    "adults": 1,
+    "children": 0
+  }
+}
+4. Booking Workflow
+4.1 Chatbot Flow Steps
+Detect user intent via LLM
+
+Extract source and destination cities
+
+Ask for travel date(s)
+
+Ask for number of passengers
+
+Call API to search flights
+
+Show flight options
+
+Ask user to select a flight
+
+Gather passenger info (name, DOB, passport, nationality)
+
+Ask about special requests (SSR)
+
+Call booking API
+
+Confirm booking and show PNR
+
+5. Slot Requirements
+Slot	Required	Description
+Source City	✅	City the user is flying from
+Destination City	✅	City the user wants to fly to
+Departure Date	✅	In format YYYY-MM-DD
+Return Date	Optional	Only for round-trips
+Adult Count	✅	Number of adults
+Children/Infants	Optional	Default to 0
+Passport Info	✅	Required after flight selection
+SSR	Optional	e.g., Meal preference, seat
+
+6. API Integration
+6.1 Search Flights
+GET /flights/search
+Example:
+
+bash
+Copy
+Edit
+/flights/search?origin=DEL&destination=DXB&date=2025-07-15&adults=1&children=0
+6.2 Create Booking (PNR)
+POST /flights/create-pnr
+
+json
+Copy
+Edit
+{
+  "flight_id": "FL1234",
+  "passengers": [{
+    "first_name": "John",
+    "last_name": "Doe",
+    "dob": "1990-05-10",
+    "passport_number": "A1234567",
+    "nationality": "IN"
+  }],
+  "contact": {
+    "email": "john@example.com",
+    "phone": "+919999999999"
+  }
+}
+6.3 Add Special Services (SSR)
+POST /flights/add-ssr
+
+json
+Copy
+Edit
+{
+  "pnr": "ABC123",
+  "ssr": [
+    { "type": "MEAL", "code": "VGML" },
+    { "type": "SEAT", "code": "12A" }
+  ]
+}
+6.4 Issue Ticket
+POST /flights/issue-ticket
+
+json
+Copy
+Edit
+{
+  "pnr": "ABC123"
+}
+7. Sample Full Conversation
+plaintext
+Copy
+Edit
+User: I want to book a flight  
+Bot: Sure! From which city are you departing?  
+User: Delhi  
+Bot: Great. What’s your destination?  
+User: Dubai  
+Bot: When do you plan to travel?  
+User: July 15  
+Bot: How many passengers are traveling?  
+User: 1 adult  
+Bot: Got it! Searching flights...  
+Bot: ✈️ Here are the options:  
+1. Air India – 10 AM – ₹15,000  
+2. Emirates – 11:30 AM – ₹16,500  
+3. Indigo – 2 PM – ₹14,000  
+Please choose one.  
+User: Option 2  
+Bot: Please provide passenger details (Name, DOB, Passport, Nationality)  
+User: John Doe, 10-May-1990, A1234567, Indian  
+Bot: Any special requests?  
+User: Veg meal and window seat  
+Bot: ✅ Booking confirmed! Your PNR is ABC123. Ticket sent to your email.
+8. Error Handling
+Scenario	Bot Behavior
+Unrecognized input	Ask for clarification or fallback
+Invalid city/date	Ask again or suggest alternatives
+Missing passenger data	Prompt user again
+API failure	Graceful error + contact support option
+
+9. Non-Functional Requirements
+Latency: < 2 seconds per response
+
+Security: All data via HTTPS; sensitive data masked
+
+Scalability: Handle 1000+ concurrent sessions
+
+Resilience: Retry on API failures
+
+Fallback: If confidence is low, transfer to human agent with ticket ID
+
+10. NLP/LLM Infrastructure
+Component	Details
+Model	OpenAI GPT / Mistral / Claude / Local LLaMA
+Hosting	Cloud or private inference server
+Prompt Tuning	Example-based or schema-based prompts
+Memory	Conversation history tracked per session
+Cost Mgmt	Prefer open-source for large-scale or fallback
