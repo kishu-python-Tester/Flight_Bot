@@ -7,7 +7,7 @@ import time
 from config.settings import Config
 from models.conversation import SessionManager
 from services.whatsapp_service import WhatsAppService, MockWhatsAppService
-from services.dialogue_manager import DialogueManager
+from services.llm_dialogue_manager import LLMDialogueManager
 
 # Configure logging
 logging.basicConfig(
@@ -30,7 +30,9 @@ else:
     whatsapp_service = WhatsAppService()
     logger.info("📱 Using Real WhatsApp Service")
 
-dialogue_manager = DialogueManager(whatsapp_service)
+# Use LLM-powered dialogue manager
+dialogue_manager = LLMDialogueManager(whatsapp_service)
+logger.info("🧠 Using Google Gemini-powered Dialogue Manager")
 
 @app.route('/')
 def health_check():
@@ -38,7 +40,7 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'service': 'Flight Booking Chatbot',
-        'version': '1.0',
+        'version': '2.0 - Google Gemini Powered',
         'active_sessions': session_manager.get_active_sessions_count()
     })
 
@@ -96,12 +98,16 @@ def process_message_async(phone_number: str, message_text: str, contact_name: st
         # Get or create session
         session = session_manager.get_session(phone_number)
         
-        # Handle welcome message for new sessions
-        if session.state.value == 'greeting' and session.get_context('last_message') is None:
+        # Handle welcome message for new sessions with simple greetings
+        if (session.state.value == 'greeting' and 
+            session.get_context('last_message') is None and
+            message_text.lower().strip() in ['hi', 'hello', 'hey', 'start']):
+            # Set context to prevent welcome message loop
+            session.set_context('last_message', message_text)
             whatsapp_service.send_welcome_message(phone_number, contact_name)
             return
         
-        # Process message through dialogue manager
+        # Process all other messages (including booking requests) through dialogue manager
         response = dialogue_manager.process_message(session, message_text)
         
         # Send response
@@ -118,14 +124,14 @@ def process_message_async(phone_number: str, message_text: str, contact_name: st
 def test_endpoint():
     """Test endpoint for manual testing"""
     return """
-    <h1>🛫 Flight Booking Chatbot Test</h1>
+    <h1>🛫 Flight Booking Chatbot Test - Google Gemini Powered</h1>
     <h2>Test the chatbot by sending a POST request to /test with message data</h2>
     
     <h3>Example:</h3>
     <pre>
-    curl -X POST http://localhost:5000/test \\
+    curl -X POST http://localhost:5001/test \\
          -H "Content-Type: application/json" \\
-         -d '{"phone_number": "+1234567890", "message": "I want to book a flight"}'
+         -d '{"phone_number": "+1234567890", "message": "I want to go to Dubai tomorrow"}'
     </pre>
     
     <h3>Current Status:</h3>
@@ -133,19 +139,16 @@ def test_endpoint():
         <li><strong>Active Sessions:</strong> """ + str(session_manager.get_active_sessions_count()) + """</li>
         <li><strong>Environment:</strong> """ + Config.FLASK_ENV + """</li>
         <li><strong>WhatsApp Service:</strong> """ + ("Mock" if isinstance(whatsapp_service, MockWhatsAppService) else "Real") + """</li>
+        <li><strong>AI Engine:</strong> Google Gemini-Powered Natural Language Understanding</li>
     </ul>
     
-    <h3>Test Conversation Flow:</h3>
+    <h3>Test Natural Language Examples:</h3>
     <ol>
-        <li>Send: "I want to book a flight"</li>
-        <li>Send: "Delhi"</li>
-        <li>Send: "Dubai"</li>
-        <li>Send: "July 15"</li>
-        <li>Send: "1 adult"</li>
-        <li>Send: "2" (to select flight option 2)</li>
-        <li>Send: "John Doe, 10-May-1990, A1234567, Indian"</li>
-        <li>Send: "Vegetarian meal and window seat"</li>
-        <li>Send: "yes" (to confirm booking)</li>
+        <li>Send: "I want to go to Dubai tomorrow"</li>
+        <li>Send: "Book me a flight from Delhi to Mumbai"</li>
+        <li>Send: "I need tickets for 2 people to London"</li>
+        <li>Send: "Flying to Singapore next week"</li>
+        <li>Send: "Hello" (to see how it handles non-booking messages)</li>
     </ol>
     """
 
@@ -242,9 +245,9 @@ if __name__ == '__main__':
     logger.info(f"📱 WhatsApp Service: {'Mock' if isinstance(whatsapp_service, MockWhatsAppService) else 'Real'}")
     
     if Config.FLASK_ENV == 'development':
-        logger.info("💡 For testing, visit: http://localhost:5000/test")
+        logger.info("💡 For testing, visit: http://localhost:5001/test")
         logger.info("💡 To test with curl:")
-        logger.info("   curl -X POST http://localhost:5000/test -H 'Content-Type: application/json' -d '{\"phone_number\": \"+1234567890\", \"message\": \"I want to book a flight\"}'")
+        logger.info("   curl -X POST http://localhost:5001/test -H 'Content-Type: application/json' -d '{\"phone_number\": \"+1234567890\", \"message\": \"I want to book a flight\"}'")
     
     app.run(
         host='0.0.0.0',

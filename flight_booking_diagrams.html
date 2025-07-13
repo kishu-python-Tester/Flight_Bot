@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Booking Chatbot - System Architecture & Flow Diagrams</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .diagram-section {
+            background: white;
+            margin: 30px 0;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .diagram-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .diagram-description {
+            margin-bottom: 20px;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+        
+        .mermaid {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .feature-title {
+            font-weight: bold;
+            color: #2980b9;
+            margin-bottom: 10px;
+        }
+        
+        .tech-stack {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .tech-item {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 5px 15px;
+            margin: 5px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        @media print {
+            body { background-color: white; }
+            .diagram-section { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛫 Flight Booking Chatbot</h1>
+        <h2>System Architecture & Flow Diagrams</h2>
+        <p>Google Gemini AI-Powered WhatsApp Integration</p>
+        <p><strong>Version:</strong> 2.0 | <strong>Date:</strong> December 2024</p>
+    </div>
+
+    <div class="tech-stack">
+        <h3>🔧 Technology Stack</h3>
+        <span class="tech-item">Python Flask</span>
+        <span class="tech-item">Google Gemini AI</span>
+        <span class="tech-item">WhatsApp Business API</span>
+        <span class="tech-item">Cloudflare Tunnel</span>
+        <span class="tech-item">JSON Data Storage</span>
+        <span class="tech-item">Session Management</span>
+        <span class="tech-item">Natural Language Processing</span>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-title">🧠 AI-Powered Understanding</div>
+            <p>Google Gemini AI processes natural language with support for multiple languages, typos, and WhatsApp slang</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">💬 Conversational Flow</div>
+            <p>11-step intelligent booking workflow with context preservation and smart fallback handling</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">✈️ Complete Booking System</div>
+            <p>End-to-end flight search, selection, passenger details, special requests, and ticket issuance</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-title">📱 WhatsApp Integration</div>
+            <p>Seamless integration with WhatsApp Business API including webhook verification and message handling</p>
+        </div>
+    </div>
+
+    <div class="diagram-section">
+        <div class="diagram-title">1. System Architecture Diagram</div>
+        <div class="diagram-description">
+            This diagram shows the overall system architecture including external integrations (WhatsApp, Google Gemini AI), 
+            the Flask application layers, core services, and data storage components. The architecture follows a layered approach 
+            with clear separation of concerns.
+        </div>
+        <div class="mermaid">
+graph TB
+    subgraph "External Systems"
+        WA[WhatsApp Business API]
+        GA[Google Gemini AI]
+        CF[Cloudflare Tunnel]
+    end
+    
+    subgraph "Flask Application - Port 5001"
+        subgraph "API Layer"
+            WH[Webhook Endpoints<br/>GET/POST /webhook]
+            TEST[Test Endpoints<br/>GET/POST /test]
+            SESS[Session Management<br/>GET/DELETE /sessions]
+        end
+        
+        subgraph "Core Services"
+            WAP[WhatsApp Service<br/>Message Send/Receive]
+            LLM[LLM Service<br/>Google Gemini Integration]
+            FS[Flight Service<br/>Search and Booking Logic]
+            IS[Intent Service<br/>NLP and Extraction]
+        end
+        
+        subgraph "Dialogue Management"
+            LDM[LLM Dialogue Manager<br/>Conversation Orchestration]
+            SM[Session Manager<br/>State Persistence]
+        end
+        
+        subgraph "Data Models"
+            CS[Conversation Sessions<br/>State and Context]
+            FD[Flight Data Models<br/>Flights, Bookings, Passengers]
+        end
+    end
+    
+    subgraph "Data Storage"
+        JSON1[dummy_flights.json<br/>Flight Database]
+        JSON2[cities.json<br/>City Mappings]
+        MEM[In-Memory Sessions<br/>Conversation State]
+    end
+    
+    %% External connections
+    WA --> CF
+    CF --> WH
+    GA --> LLM
+    
+    %% Internal service connections
+    WH --> WAP
+    TEST --> LDM
+    SESS --> SM
+    
+    WAP --> LDM
+    LDM --> LLM
+    LDM --> FS
+    LDM --> IS
+    LDM --> SM
+    
+    SM --> CS
+    FS --> FD
+    FS --> JSON1
+    IS --> JSON2
+    
+    LDM --> WAP
+    WAP --> WA
+    
+    %% Memory storage
+    CS --> MEM
+    
+    style WA fill:#25d366
+    style GA fill:#4285f4
+    style CF fill:#f38020
+    style LLM fill:#4285f4
+    style LDM fill:#ff6b6b
+    style WAP fill:#25d366
+    style FS fill:#4ecdc4
+    style SM fill:#ffe66d
+        </div>
+    </div>
+
+    <div class="diagram-section">
+        <div class="diagram-title">2. Conversation Flow Diagram</div>
+        <div class="diagram-description">
+            This flowchart illustrates the complete user journey from initial message to booking completion. 
+            It shows the 11-step booking workflow, state transitions, Google Gemini AI integration points, 
+            and error handling mechanisms including smart reset logic.
+        </div>
+        <div class="mermaid">
+graph TD
+    START([User sends message via WhatsApp]) --> WEBHOOK[Webhook receives message]
+    WEBHOOK --> SESSION{Get/Create Session}
+    
+    SESSION --> GREETING{State: Greeting?}
+    GREETING -->|Yes| WELCOME[Welcome Message and Intent Detection]
+    GREETING -->|No| ROUTE[Route to Current State Handler]
+    
+    WELCOME --> GEMINI[Google Gemini Analysis]
+    GEMINI --> INTENT{Flight Booking Intent?}
+    
+    INTENT -->|No| HELP[Provide Help and Examples]
+    INTENT -->|Yes| EXTRACT[Extract: Cities, Date, Passengers]
+    
+    EXTRACT --> SOURCE{Source City Collected?}
+    SOURCE -->|No| ASK_SOURCE[Ask for departure city]
+    SOURCE -->|Yes| DEST{Destination Collected?}
+    
+    ASK_SOURCE --> STATE1[State: COLLECT_SOURCE]
+    STATE1 --> WAIT1[Wait for user response]
+    WAIT1 --> SESSION
+    
+    DEST -->|No| ASK_DEST[Ask for destination city]
+    DEST -->|Yes| DATE_CHECK{Date Collected?}
+    
+    ASK_DEST --> STATE2[State: COLLECT_DESTINATION]
+    STATE2 --> WAIT2[Wait for user response]
+    WAIT2 --> SESSION
+    
+    DATE_CHECK -->|No| ASK_DATE[Ask for travel date]
+    DATE_CHECK -->|Yes| PAX_CHECK{Passengers Collected?}
+    
+    ASK_DATE --> STATE3[State: COLLECT_DATE]
+    STATE3 --> WAIT3[Wait for user response]
+    WAIT3 --> SESSION
+    
+    PAX_CHECK -->|No| ASK_PAX[Ask for passenger count]
+    PAX_CHECK -->|Yes| SEARCH_FLIGHTS[Search Available Flights]
+    
+    ASK_PAX --> STATE4[State: COLLECT_PASSENGERS]
+    STATE4 --> WAIT4[Wait for user response]
+    WAIT4 --> SESSION
+    
+    SEARCH_FLIGHTS --> FLIGHTS_FOUND{Flights Available?}
+    FLIGHTS_FOUND -->|No| NO_FLIGHTS[No flights message]
+    FLIGHTS_FOUND -->|Yes| DISPLAY[Display Flight Options]
+    
+    NO_FLIGHTS --> RESTART[Reset and Ask for new search]
+    DISPLAY --> STATE5[State: COLLECT_SELECTION]
+    
+    STATE5 --> WAIT5[Wait for flight selection]
+    WAIT5 --> SESSION
+    
+    ROUTE --> SELECT{Selection Handler}
+    SELECT --> VALID_SELECT{Valid Flight Selected?}
+    VALID_SELECT -->|No| RETRY_SELECT[Ask to select again]
+    VALID_SELECT -->|Yes| PASSENGER_DETAILS[Ask for Passenger Details]
+    
+    RETRY_SELECT --> STATE5
+    PASSENGER_DETAILS --> STATE6[State: COLLECT_PASSENGER_DETAILS]
+    
+    STATE6 --> WAIT6[Wait for passenger info]
+    WAIT6 --> SESSION
+    
+    ROUTE --> DETAILS{Details Handler}
+    DETAILS --> VALID_DETAILS{Valid Passenger Info?}
+    VALID_DETAILS -->|No| RETRY_DETAILS[Ask for details again]
+    VALID_DETAILS -->|Yes| ASK_SSR[Ask for Special Requests]
+    
+    RETRY_DETAILS --> STATE6
+    ASK_SSR --> STATE7[State: COLLECT_SSR]
+    
+    STATE7 --> WAIT7[Wait for SSR preferences]
+    WAIT7 --> SESSION
+    
+    ROUTE --> SSR{SSR Handler}
+    SSR --> SUMMARY[Generate Booking Summary]
+    SUMMARY --> CONFIRM[Ask for Confirmation]
+    CONFIRM --> STATE8[State: CONFIRM_BOOKING]
+    
+    STATE8 --> WAIT8[Wait for confirmation]
+    WAIT8 --> SESSION
+    
+    ROUTE --> CONFIRMATION{Confirmation Handler}
+    CONFIRMATION --> CONFIRMED{User Confirms?}
+    CONFIRMED -->|No| CANCEL[Booking Cancelled]
+    CONFIRMED -->|Yes| PROCESS[Process Booking]
+    
+    PROCESS --> CREATE_PNR[Create PNR]
+    CREATE_PNR --> ADD_SSR[Add Special Requests]
+    ADD_SSR --> ISSUE_TICKET[Issue Ticket]
+    ISSUE_TICKET --> SUCCESS[Booking Success Message]
+    
+    SUCCESS --> STATE9[State: COMPLETED]
+    CANCEL --> RESTART
+    HELP --> SESSION
+    
+    style START fill:#4ecdc4
+    style GEMINI fill:#4285f4
+    style SEARCH_FLIGHTS fill:#ff6b6b
+    style PROCESS fill:#95e1d3
+    style SUCCESS fill:#a8e6cf
+        </div>
+    </div>
+
+    <div class="diagram-section">
+        <div class="diagram-title">3. Data Flow Diagram</div>
+        <div class="diagram-description">
+            This diagram shows how data flows through the system from user input to response generation. 
+            It illustrates the processing pipeline including AI analysis, business logic execution, 
+            data storage interactions, and response formatting.
+        </div>
+        <div class="mermaid">
+graph LR
+    subgraph "User Input"
+        UI[User Message<br/>WhatsApp]
+    end
+    
+    subgraph "Message Processing"
+        WS[WhatsApp Service<br/>Extract Message Data]
+        SM[Session Manager<br/>Get/Create Session]
+        LDM[LLM Dialogue Manager<br/>Process Message]
+    end
+    
+    subgraph "AI Analysis"
+        LLM[Google Gemini LLM<br/>Natural Language Understanding]
+        ANALYSIS[Intent Analysis<br/>City/Date/Passenger Extraction]
+        IS[Intent Service<br/>Fallback NLP Processing]
+    end
+    
+    subgraph "Business Logic"
+        FS[Flight Service<br/>Search and Booking]
+        BM[Booking Manager<br/>PNR Management]
+        SSR[Special Service Requests<br/>Meal/Seat Preferences]
+    end
+    
+    subgraph "Data Sources"
+        FD[dummy_flights.json<br/>Flight Database]
+        CD[cities.json<br/>City Mappings]
+        MEM[In-Memory Storage<br/>Session Data]
+    end
+    
+    subgraph "Response Generation"
+        RG[Response Generator<br/>Format WhatsApp Messages]
+        WO[WhatsApp Output<br/>Send to User]
+    end
+    
+    %% Data flow
+    UI --> WS
+    WS --> SM
+    SM --> LDM
+    
+    LDM --> LLM
+    LLM --> ANALYSIS
+    ANALYSIS --> IS
+    IS --> LDM
+    
+    LDM --> FS
+    FS --> FD
+    FS --> CD
+    FS --> BM
+    BM --> SSR
+    
+    FS --> LDM
+    LDM --> SM
+    SM --> MEM
+    
+    LDM --> RG
+    RG --> WO
+    WO --> UI
+    
+    %% Bidirectional flows
+    SM <--> MEM
+    FS <--> FD
+    IS <--> CD
+    
+    style UI fill:#25d366
+    style LLM fill:#4285f4
+    style FS fill:#4ecdc4
+    style MEM fill:#ffe66d
+    style WO fill:#25d366
+        </div>
+    </div>
+
+    <div class="diagram-section">
+        <div class="diagram-title">4. Key System Components</div>
+        <div class="diagram-description">
+            Overview of the major system components and their responsibilities in the flight booking chatbot.
+        </div>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-title">🧠 LLM Service (Google Gemini)</div>
+                <ul>
+                    <li>Natural language understanding</li>
+                    <li>Intent classification</li>
+                    <li>Information extraction</li>
+                    <li>Multi-language support</li>
+                    <li>Typo and slang handling</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-title">💬 Dialogue Manager</div>
+                <ul>
+                    <li>Conversation orchestration</li>
+                    <li>State management</li>
+                    <li>Context preservation</li>
+                    <li>Smart reset logic</li>
+                    <li>Error handling</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-title">✈️ Flight Service</div>
+                <ul>
+                    <li>Flight search logic</li>
+                    <li>Booking management</li>
+                    <li>PNR generation</li>
+                    <li>Special service requests</li>
+                    <li>Ticket issuance</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-title">📱 WhatsApp Service</div>
+                <ul>
+                    <li>Message handling</li>
+                    <li>Webhook verification</li>
+                    <li>Response formatting</li>
+                    <li>Mock service for testing</li>
+                    <li>Error recovery</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-title">💾 Session Manager</div>
+                <ul>
+                    <li>User session tracking</li>
+                    <li>State persistence</li>
+                    <li>Context management</li>
+                    <li>Session cleanup</li>
+                    <li>Concurrent user support</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-title">🔍 Intent Service</div>
+                <ul>
+                    <li>Fallback NLP processing</li>
+                    <li>City name extraction</li>
+                    <li>Date parsing</li>
+                    <li>Passenger count detection</li>
+                    <li>Flight selection parsing</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="diagram-section">
+        <div class="diagram-title">5. Conversation States</div>
+        <div class="diagram-description">
+            The system uses 11 distinct conversation states to manage the booking workflow:
+        </div>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-title">State Flow</div>
+                <ol>
+                    <li><strong>GREETING</strong> - Welcome and intent detection</li>
+                    <li><strong>COLLECT_SOURCE</strong> - Get departure city</li>
+                    <li><strong>COLLECT_DESTINATION</strong> - Get arrival city</li>
+                    <li><strong>COLLECT_DATE</strong> - Get travel date</li>
+                    <li><strong>COLLECT_PASSENGERS</strong> - Get passenger count</li>
+                    <li><strong>SHOW_FLIGHTS</strong> - Display available options</li>
+                    <li><strong>COLLECT_SELECTION</strong> - Get flight choice</li>
+                    <li><strong>COLLECT_PASSENGER_DETAILS</strong> - Get passenger info</li>
+                    <li><strong>COLLECT_SSR</strong> - Special service requests</li>
+                    <li><strong>CONFIRM_BOOKING</strong> - Final confirmation</li>
+                    <li><strong>COMPLETED</strong> - Booking finished</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#3498db',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#2980b9',
+                lineColor: '#7f8c8d',
+                secondaryColor: '#ecf0f1',
+                tertiaryColor: '#f8f9fa'
+            }
+        });
+    </script>
+</body>
+</html> 

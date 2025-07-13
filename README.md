@@ -1,24 +1,27 @@
-# ✈️ WhatsApp Flight Booking Chatbot
+# ✈️ WhatsApp Flight Booking Chatbot - Google Gemini Powered
 
-A complete AI-powered flight booking assistant that integrates with WhatsApp Business API. This chatbot can handle the entire flight booking workflow through natural language conversations.
+A complete AI-powered flight booking assistant that integrates with WhatsApp Business API and uses Google's advanced Gemini AI for natural conversation understanding. This chatbot can handle the entire flight booking workflow through intelligent natural language conversations.
 
 ## 🌟 Features
 
-- **Natural Language Understanding**: Extracts booking information from conversational text
-- **Complete Booking Workflow**: Handles the full 11-step flight booking process
-- **WhatsApp Integration**: Works seamlessly with WhatsApp Business API
-- **Mock API Support**: Uses dummy data for testing without external API dependencies
-- **Session Management**: Maintains conversation state across multiple messages
-- **Error Handling**: Graceful handling of unclear inputs and failures
-- **Multi-passenger Support**: Handles individual and group bookings
-- **Special Requests**: Supports meal preferences, seat selection, and assistance requests
+- **🧠 Google Gemini-Powered Natural Language Understanding**: Uses Google's latest Gemini AI models for superior conversation understanding
+- **🗣️ Natural Conversation Flow**: Users can express their travel needs in their own words
+- **✈️ Complete Booking Workflow**: Handles the full 11-step flight booking process
+- **📱 WhatsApp Integration**: Works seamlessly with WhatsApp Business API
+- **🎭 Mock API Support**: Uses dummy data for testing without external API dependencies
+- **💾 Session Management**: Maintains conversation state across multiple messages
+- **🛡️ Error Handling**: Graceful handling of unclear inputs and failures
+- **👥 Multi-passenger Support**: Handles individual and group bookings
+- **🍽️ Special Requests**: Supports meal preferences, seat selection, and assistance requests
+- **🔄 Fallback Support**: Combines Gemini intelligence with rule-based extraction for reliability
 
 ## 📋 Requirements
 
 - Python 3.8+
 - Flask 2.3+
+- Google AI API account (for Gemini features)
 - WhatsApp Business API account (for production)
-- ngrok (for local testing)
+- ngrok or Cloudflare Tunnel (for local testing)
 
 ## 🚀 Quick Start
 
@@ -37,11 +40,18 @@ Copy the environment template:
 cp env.example .env
 ```
 
-Edit `.env` file with your WhatsApp credentials:
+Edit `.env` file with your credentials:
 ```env
+# WhatsApp Business API Configuration
 WHATSAPP_TOKEN=your_whatsapp_access_token_here
 WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id_here
 WHATSAPP_VERIFY_TOKEN=flight_booking_verify_token_123
+
+# Google AI Configuration (Required for Gemini features)
+GOOGLE_API_KEY=your_google_api_key_here
+
+# Application Configuration
+FLASK_ENV=development
 ```
 
 ### 3. Run the Application
@@ -50,69 +60,93 @@ WHATSAPP_VERIFY_TOKEN=flight_booking_verify_token_123
 python app.py
 ```
 
-The application will start on `http://localhost:5000`
+The application will start on `http://localhost:5001`
 
 ## 🧪 Testing
 
 ### Option 1: Web Interface Testing
 
-1. Visit `http://localhost:5000/test`
+1. Visit `http://localhost:5001/test`
 2. Use the web interface to send test messages
-3. Follow the complete booking workflow
+3. Try natural language messages like:
+   - "I want to go to Dubai tomorrow"
+   - "Book me a flight from Delhi to Mumbai"
+   - "I need tickets for 2 people to London"
 
 ### Option 2: API Testing with curl
 
 ```bash
-# Start conversation
-curl -X POST http://localhost:5000/test \
+# Natural language booking request
+curl -X POST http://localhost:5001/test \
      -H "Content-Type: application/json" \
-     -d '{"phone_number": "+1234567890", "message": "I want to book a flight"}'
+     -d '{"phone_number": "+1234567890", "message": "I want to go to Dubai tomorrow"}'
 
-# Continue conversation
-curl -X POST http://localhost:5000/test \
+# Incomplete request (Gemini will ask for missing info)
+curl -X POST http://localhost:5001/test \
      -H "Content-Type: application/json" \
-     -d '{"phone_number": "+1234567890", "message": "Delhi"}'
+     -d '{"phone_number": "+1234567890", "message": "Book a flight"}'
 ```
 
-### Complete Test Conversation Flow
+### Natural Language Test Examples
 
-Follow this sequence to test the entire booking workflow:
+Google Gemini can understand various ways of expressing travel intent:
 
-1. **Start**: `"I want to book a flight"`
-2. **Source**: `"Delhi"`
-3. **Destination**: `"Dubai"`
-4. **Date**: `"July 15"`
-5. **Passengers**: `"1 adult"`
-6. **Flight Selection**: `"2"` (select option 2)
-7. **Passenger Details**: `"John Doe, 10-May-1990, A1234567, Indian"`
-8. **Special Requests**: `"Vegetarian meal and window seat"`
-9. **Confirmation**: `"yes"`
+1. **Complete requests**: `"I want to fly from Delhi to Dubai tomorrow for 2 people"`
+2. **Partial requests**: `"Going to London next week"`
+3. **Casual language**: `"Need tickets to Singapore"`
+4. **Specific requests**: `"Book me a flight from Mumbai to Bangkok on July 15"`
+5. **Conversational**: `"Hello, I'm planning a trip to Dubai"`
 
 ## 🏗️ Project Structure
 
 ```
 flight_book/
-├── app.py                     # Main Flask application
-├── requirements.txt           # Python dependencies
+├── app.py                          # Main Flask application  
+├── requirements.txt                # Python dependencies (includes google-generativeai)
 ├── config/
-│   └── settings.py           # Configuration management
+│   └── settings.py                # Configuration (includes Google API key)
 ├── models/
-│   ├── conversation.py       # Session and state management
-│   └── flight_data.py        # Flight and booking data models
+│   ├── conversation.py            # Session and state management
+│   └── flight_data.py             # Flight and booking data models
 ├── services/
-│   ├── intent_service.py     # Intent recognition and NLP
-│   ├── dialogue_manager.py   # Conversation flow orchestration
-│   ├── flight_service.py     # Flight search and booking logic
-│   └── whatsapp_service.py   # WhatsApp API integration
+│   ├── llm_service.py             # 🧠 Google Gemini integration service
+│   ├── llm_dialogue_manager.py    # 🤖 Gemini-powered conversation manager
+│   ├── intent_service.py          # Fallback intent recognition and NLP
+│   ├── dialogue_manager.py        # Legacy rule-based manager
+│   ├── flight_service.py          # Flight search and booking logic
+│   └── whatsapp_service.py        # WhatsApp API integration
 ├── data/
-│   ├── dummy_flights.json    # Mock flight database
-│   └── cities.json          # City and IATA code mapping
+│   ├── dummy_flights.json         # Mock flight database
+│   └── cities.json               # City and IATA code mapping
 ├── utils/
-│   └── helpers.py           # Utility functions
-├── env.example              # Environment variables template
-├── PRD.md                   # Product Requirements Document
-└── README.md               # This file
+│   └── helpers.py                # Utility functions
+├── env.example                   # Environment variables template
+├── PRD.md                       # Product Requirements Document
+└── README.md                    # This file
 ```
+
+## 🧠 Google Gemini Integration
+
+### How It Works
+
+1. **Message Analysis**: Google Gemini analyzes user messages to understand intent and extract information
+2. **Smart Extraction**: Combines Gemini intelligence with rule-based fallbacks
+3. **Context Awareness**: Maintains conversation context for follow-up questions
+4. **Flexible Understanding**: Handles various ways of expressing the same intent
+
+### Gemini Capabilities
+
+- **Intent Recognition**: Determines if message is flight-booking related
+- **Information Extraction**: Pulls out cities, dates, passenger counts from natural language
+- **Next Question Generation**: Intelligently asks for missing information
+- **Error Recovery**: Handles unclear or incomplete requests gracefully
+- **JSON Response Parsing**: Handles Gemini's markdown formatting automatically
+
+### Fallback Strategy
+
+- Primary: Google Gemini analysis for natural language understanding
+- Secondary: Rule-based extraction for structured data (cities, dates, flight selection)
+- Tertiary: Human handoff for complex cases
 
 ## 📱 WhatsApp Integration
 
@@ -132,7 +166,7 @@ In mock mode, messages are printed to console instead of being sent to WhatsApp.
    - Get your access token and phone number ID
 
 2. **Configure Webhook**:
-   - Use ngrok to expose your local server: `ngrok http 5000`
+   - Use ngrok to expose your local server: `ngrok http 5001`
    - Set webhook URL in Meta Developer Console to: `https://your-ngrok-url.ngrok.io/webhook`
    - Set verify token to match your `WHATSAPP_VERIFY_TOKEN`
 
@@ -162,13 +196,13 @@ In mock mode, messages are printed to console instead of being sent to WhatsApp.
 
 ```bash
 # Check application status
-curl http://localhost:5000/
+curl http://localhost:5001/
 
 # View active sessions
-curl http://localhost:5000/sessions
+curl http://localhost:5001/sessions
 
 # Reset a session
-curl -X DELETE http://localhost:5000/sessions/+1234567890
+curl -X DELETE http://localhost:5001/sessions/+1234567890
 ```
 
 ## 🎯 Conversation Flow
@@ -223,25 +257,26 @@ Supported special service requests:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `GOOGLE_API_KEY` | Google AI API key for Gemini features | Required for AI features |
 | `WHATSAPP_TOKEN` | WhatsApp Business API access token | Required for production |
 | `WHATSAPP_PHONE_NUMBER_ID` | Your WhatsApp phone number ID | Required for production |
 | `WHATSAPP_VERIFY_TOKEN` | Webhook verification token | `flight_booking_verify_token` |
 | `FLASK_ENV` | Application environment | `development` |
 | `DEBUG` | Enable debug mode | `True` |
-| `PORT` | Application port | `5000` |
+| `PORT` | Application port | `5001` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 
-### Mock vs Production Mode
+### AI vs Rule-based Mode
 
-**Mock Mode** (Development):
-- Messages printed to console
-- No external API calls
-- Suitable for testing and development
+**Gemini Mode** (Default):
+- Uses Google Gemini for natural language understanding
+- Handles conversational and partial requests
+- More flexible and user-friendly
 
-**Production Mode**:
-- Real WhatsApp API integration
-- Webhook verification required
-- Proper error handling and logging
+**Rule-based Fallback**:
+- Uses pattern matching for specific extractions
+- Faster but less flexible
+- Always available as backup
 
 ## 📊 Monitoring and Logging
 
@@ -313,6 +348,9 @@ The system handles various error scenarios:
 **Issue**: Session state lost
 **Solution**: Sessions expire after 30 minutes of inactivity; start a new conversation
 
+**Issue**: Gemini API errors
+**Solution**: Verify your `GOOGLE_API_KEY` is valid and has quota available
+
 ### Debug Mode
 
 Run with debug logging:
@@ -336,6 +374,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Built according to the PRD specifications
 - Uses WhatsApp Business API
+- Powered by Google's advanced Gemini AI
 - Implements industry-standard conversation flow patterns
 - Follows best practices for chatbot development
 
