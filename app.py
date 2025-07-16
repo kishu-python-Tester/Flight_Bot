@@ -3,11 +3,13 @@ import os
 from flask import Flask, request, jsonify
 from threading import Thread
 import time
+from dotenv import load_dotenv
 
 from config.settings import Config
 from models.conversation import SessionManager
 from services.whatsapp_service import WhatsAppService, MockWhatsAppService
 from services.llm_dialogue_manager import LLMDialogueManager
+from models.ticket_storage import ticket_storage
 
 # Configure logging
 logging.basicConfig(
@@ -78,12 +80,13 @@ def handle_webhook():
         
         phone_number = message_data['phone_number']
         message_text = message_data['text']
+        message_type = message_data['type']
         contact_name = message_data.get('contact_name', '')
         
-        logger.info(f"📞 Message from {phone_number}: {message_text}")
+        logger.info(f"📞 Message from {phone_number}: {message_text} (Type: {message_type})")
         
         # Process message in separate thread to avoid timeout
-        thread = Thread(target=process_message_async, args=(phone_number, message_text, contact_name))
+        thread = Thread(target=process_message_async, args=(phone_number, message_text, contact_name, message_type, message_data))
         thread.start()
         
         return jsonify({'status': 'ok'})
@@ -92,11 +95,16 @@ def handle_webhook():
         logger.error(f"❌ Error handling webhook: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-def process_message_async(phone_number: str, message_text: str, contact_name: str = ''):
+def process_message_async(phone_number: str, message_text: str, contact_name: str = '', message_type: str = 'text', message_data: dict = {}):
     """Process message asynchronously"""
     try:
         # Get or create session
         session = session_manager.get_session(phone_number)
+        
+        # Handle PDF document uploads
+        if message_type == 'document' and message_data:
+            handle_pdf_upload(phone_number, message_data, session)
+            return
         
         # Handle welcome message for new sessions with simple greetings
         if (session.state.value == 'greeting' and 
@@ -118,7 +126,88 @@ def process_message_async(phone_number: str, message_text: str, contact_name: st
         
     except Exception as e:
         logger.error(f"❌ Error processing message for {phone_number}: {e}")
-        whatsapp_service.send_error_message(phone_number, 'general')
+
+def handle_pdf_upload(phone_number: str, message_data: dict, session):
+    """Handle PDF ticket upload and processing"""
+    try:
+        document_info = message_data.get('document', {})
+        
+        if not whatsapp_service.is_pdf_document(document_info):
+            whatsapp_service.send_error_message(phone_number, 'invalid_pdf')
+            return
+        
+        # Send processing message
+        whatsapp_service.send_pdf_processing_message(phone_number)
+        
+        # Download PDF file
+        media_id = document_info.get('id')
+        if not media_id:
+            whatsapp_service.send_error_message(phone_number, 'pdf_parsing_failed')
+            return
+        
+        pdf_content = whatsapp_service.download_media_file(media_id)
+        if not pdf_content:
+            whatsapp_service.send_error_message(phone_number, 'pdf_parsing_failed')
+            return
+        
+        # Parse ticket using LLM
+        from services.ticket_parser_service import TicketParserService
+        ticket_parser = TicketParserService()
+        
+        # Validate PDF
+        if not ticket_parser.validate_pdf_file(pdf_content):
+            whatsapp_service.send_error_message(phone_number, 'invalid_pdf')
+            return
+        
+        # Parse ticket details
+        ticket_info = ticket_parser.parse_flight_ticket(pdf_content)
+        
+        if not ticket_info.get('success'):
+            whatsapp_service.send_error_message(phone_number, 'pdf_parsing_failed')
+            return
+        
+        # Extract flight details for price comparison
+        flight_details = ticket_info.get('flight_details', {})
+        origin_airport = flight_details.get('origin_airport')
+        destination_airport = flight_details.get('destination_airport')
+        departure_date = flight_details.get('departure_date')
+        
+        # Compare prices if we have the required data
+        price_comparison = None
+        if origin_airport and destination_airport and departure_date:
+            price_comparison = ticket_parser.compare_prices_with_system(
+                ticket_info, origin_airport, destination_airport, departure_date
+            )
+        
+        # 🆕 ENHANCED: Clear any existing ticket context before setting new data
+        session.set_context('parsed_ticket', None)
+        session.set_context('price_comparison', None)
+        
+        # Format and send response
+        response = ticket_parser.format_ticket_analysis_for_whatsapp(ticket_info, price_comparison)
+        whatsapp_service.send_text_message(phone_number, response)
+        
+        # 🆕 ENHANCED: Set new ticket data atomically
+        session.set_context('parsed_ticket', ticket_info)
+        session.set_context('price_comparison', price_comparison)
+        
+        # 🆕 ENHANCED: Store in persistent storage with clear operation
+        ticket_storage.clear_ticket_data(phone_number)  # Clear old data first
+        ticket_storage.store_ticket_data(
+            phone_number=phone_number,
+            ticket_info=ticket_info,
+            price_comparison=price_comparison
+        )
+        
+        logger.info(f"✅ PDF ticket processed and stored for {phone_number}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error processing PDF upload for {phone_number}: {e}")
+        # Clear any partial data on error
+        session.set_context('parsed_ticket', None)
+        session.set_context('price_comparison', None)
+        ticket_storage.clear_ticket_data(phone_number)
+        whatsapp_service.send_error_message(phone_number, 'pdf_parsing_failed')
 
 @app.route('/test', methods=['GET'])
 def test_endpoint():

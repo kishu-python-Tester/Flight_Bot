@@ -5,6 +5,8 @@ from services.llm_service import LLMService
 from services.flight_service import FlightService
 from services.whatsapp_service import WhatsAppService
 from services.intent_service import IntentService
+from datetime import datetime
+from models.ticket_storage import ticket_storage
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +19,19 @@ class LLMDialogueManager:
         self.max_retries = 3
         
     def process_message(self, session: ConversationSession, message: str) -> str:
-        """Process message using LLM-powered understanding"""
+        """Process incoming message and return appropriate response"""
+        
         try:
             session.set_context('last_message', message)
+            
+            # 🆕 CHECK FOR STORED TICKET DATA if session doesn't have it
+            if not session.get_context('parsed_ticket'):
+                stored_data = ticket_storage.get_ticket_data(session.phone_number)
+                if stored_data:
+                    # Restore ticket data to session
+                    session.set_context('parsed_ticket', stored_data.get('ticket_info'))
+                    session.set_context('price_comparison', stored_data.get('price_comparison'))
+                    logger.info(f"✅ Restored ticket data for {session.phone_number}")
             
             # Detect if user wants to start a new booking (reset intent) - works in any state
             reset_phrases = [
@@ -66,8 +78,16 @@ class LLMDialogueManager:
                 return self._handle_ssr_collection(session, message)
             elif session.state == ConversationState.CONFIRM_BOOKING:
                 return self._handle_booking_confirmation(session, message)
+            elif session.state == ConversationState.COLLECT_OFFICE_ID:
+                return self._handle_office_id_collection(session, message)
             elif session.state == ConversationState.COMPLETED:
                 return self._handle_completed_state(session, message)
+            
+            # Check for ticket-related actions first
+            if session.get_context('parsed_ticket'):
+                ticket_action = self._detect_ticket_action(message)
+                if ticket_action:
+                    return self._handle_ticket_action(session, message, ticket_action)
             
             # Use LLM for intelligent understanding
             return self._handle_with_llm(session, message)
@@ -323,24 +343,88 @@ John Doe, 10-May-1990, A1234567, Indian
 *Would you like to proceed?*"""
     
     def _handle_completed_state(self, session: ConversationSession, message: str) -> str:
-        """Handle completed state - start new booking"""
-        # Reset session for new booking
-        session.state = ConversationState.GREETING
-        session.data = {
-            'source_city': None,
-            'destination_city': None,
-            'departure_date': None,
-            'return_date': None,
-            'adults': 1,
-            'children': 0,
-            'infants': 0,
-            'selected_flight': None,
-            'passengers': [],
-            'ssr': [],
-            'pnr': None,
-            'booking_confirmed': False
-        }
-        return self._handle_with_llm(session, message)
+        """Handle completed state - check for ticket actions before starting new booking"""
+        
+        # 🆕 ENHANCED: Check for ticket-related actions first before resetting session
+        if session.get_context('parsed_ticket'):
+            ticket_action = self._detect_ticket_action(message)
+            if ticket_action:
+                # User is asking about their ticket, handle the action
+                return self._handle_ticket_action(session, message, ticket_action)
+        
+        # 🆕 ENHANCED: Check if user wants to start a new booking explicitly
+        new_booking_phrases = [
+            'book new flight', 'new booking', 'fresh booking', 'start over',
+            'book flight', 'i need flight', 'i want flight', 'book me flight',
+            'need to book', 'want to book'
+        ]
+        
+        message_lower = message.lower().strip()
+        is_new_booking_request = any(phrase in message_lower for phrase in new_booking_phrases)
+        
+        if is_new_booking_request:
+            # User explicitly wants a new booking, reset session
+            session.state = ConversationState.GREETING
+            session.data = {
+                'source_city': None,
+                'destination_city': None,
+                'departure_date': None,
+                'return_date': None,
+                'adults': 1,
+                'children': 0,
+                'infants': 0,
+                'selected_flight': None,
+                'passengers': [],
+                'ssr': [],
+                'pnr': None,
+                'booking_confirmed': False
+            }
+            return self._handle_with_llm(session, message)
+        
+        # 🆕 ENHANCED: Fallback for ticket-related queries that weren't detected
+        has_ticket = session.get_context('parsed_ticket')
+        has_comparison = session.get_context('price_comparison')
+        
+        # Keywords that suggest user is asking about their ticket
+        ticket_related_keywords = [
+            'price', 'cost', 'fare', 'ticket', 'flight', 'compare', 'show', 'tell', 'check',
+            'what', 'how much', 'details', 'info', 'information', 'about'
+        ]
+        
+        has_ticket_keywords = any(keyword in message_lower for keyword in ticket_related_keywords)
+        
+        if has_ticket and has_ticket_keywords:
+            # User seems to be asking about their ticket but action wasn't detected
+            # Provide helpful guidance instead of resetting to new booking
+            flight_details = has_ticket.get('flight_details', {})
+            
+            return f"""📄 *Your Uploaded Ticket*
+
+✈️ **Flight:** {flight_details.get('airline', 'Unknown')} {flight_details.get('flight_number', 'N/A')}
+📍 **Route:** {flight_details.get('origin_city', 'Unknown')} → {flight_details.get('destination_city', 'Unknown')}
+📅 **Date:** {flight_details.get('departure_date', 'N/A')}
+
+💡 **You can ask me:**
+• "*compare prices*" - Compare with our system prices
+• "*search similar*" - Find similar flights to book
+• "*book new flight*" - Start a fresh booking
+
+*What would you like to know?* ✈️"""
+        
+        # 🆕 ENHANCED: For other messages, provide helpful guidance without resetting
+        return """✅ *Booking Complete!*
+
+Your previous booking is confirmed. What would you like to do next?
+
+📄 *If you have a ticket uploaded:*
+• Type '*compare prices*' for price comparison
+• Type '*search similar*' to find similar flights
+
+✈️ *For new bookings:*
+• Type '*book new flight*' to start fresh booking
+• Tell me your travel plans
+
+*How can I help you?* 🛫"""
     
     def _generate_booking_summary(self, session: ConversationSession) -> str:
         """Generate booking summary for confirmation"""
@@ -423,6 +507,363 @@ John Doe, 10-May-1990, A1234567, Indian
         except Exception as e:
             logger.error(f"Error processing booking: {e}")
             return "❌ *Booking Failed*\n\nSorry, there was an issue processing your booking. Please try again or contact support."
+    
+    def _detect_ticket_action(self, message: str) -> str:
+        """Detect if user wants to perform actions related to their uploaded ticket"""
+        message_lower = message.lower().strip()
+        
+        # 🆕 ENHANCED: Much more comprehensive price comparison detection
+        price_comparison_phrases = [
+            # Direct comparison
+            'compare prices', 'price comparison', 'compare', 'comparison',
+            
+            # Show/tell variations
+            'show prices', 'show price', 'tell me prices', 'tell me price', 
+            'show me prices', 'show me price', 'display prices', 'display price',
+            
+            # Check variations  
+            'check prices', 'check price', 'price check', 'check cost',
+            'check fare', 'fare check',
+            
+            # What/how questions
+            'what about prices', 'what about price', 'what about cost',
+            'what about fare', 'how much', 'how much does it cost',
+            'what is the price', 'what is price', 'what price',
+            'what cost', 'what fare',
+            
+            # Details variations
+            'price details', 'price detail', 'cost details', 'cost detail',
+            'fare details', 'fare detail', 'pricing details', 'pricing',
+            
+            # System comparison
+            'compare with system', 'compare with your system', 'system price',
+            'your price', 'better price', 'cheaper price',
+            
+            # General price inquiries
+            'prices', 'price', 'cost', 'costs', 'fare', 'fares',
+            'pricing', 'rate', 'rates', 'amount', 'total',
+            
+            # Action-oriented
+            'analyze price', 'analyze prices', 'review price', 'review prices'
+        ]
+        
+        if any(phrase in message_lower for phrase in price_comparison_phrases):
+            return 'compare_prices'
+        
+        # Other actions (existing logic)
+        elif any(phrase in message_lower for phrase in ['search similar', 'find similar', 'similar flights']):
+            return 'search_similar'
+        elif any(phrase in message_lower for phrase in ['book new flight', 'new booking', 'book flight']):
+            return 'book_new'
+        elif any(phrase in message_lower for phrase in ['book this flight', 'book same flight', 'book exact']):
+            return 'book_exact'
+        elif any(phrase in message_lower for phrase in [
+            'book with new price', 'book new price', 'go ahead', 'proceed', 
+            'book cheaper', 'book better price', 'book with system', 'book now',
+            'yes book', 'book it', 'book this'
+        ]):
+            return 'book_with_better_price'
+        
+        return ''
+    
+    def _handle_ticket_action(self, session: ConversationSession, message: str, action: str) -> str:
+        """Handle actions related to uploaded ticket"""
+        parsed_ticket = session.get_context('parsed_ticket')
+        
+        if not parsed_ticket:
+            return "❌ No ticket information found. Please upload your ticket again."
+        
+        flight_details = parsed_ticket.get('flight_details', {})
+        
+        if action == 'search_similar':
+            # Search for flights on the same route
+            origin = flight_details.get('origin_airport')
+            destination = flight_details.get('destination_airport')
+            date = flight_details.get('departure_date')
+            
+            if not all([origin, destination, date]):
+                return "❌ Missing flight details. Please upload a clearer ticket."
+            
+            # Set up booking search using airport codes
+            from services.intent_service import IntentService
+            intent_service = IntentService()
+            
+            # Try to find city data for origin and destination
+            origin_cities = intent_service.extract_cities(origin)
+            dest_cities = intent_service.extract_cities(destination)
+            
+            if origin_cities and dest_cities:
+                session.set_data('source_city', origin_cities[0])
+                session.set_data('destination_city', dest_cities[0])
+                session.set_data('departure_date', date)
+                session.set_data('adults', 1)
+                session.set_data('children', 0)
+                session.set_data('infants', 0)
+                
+                # Search and display flights
+                return self._search_and_display_flights(session)
+            else:
+                return f"❌ Sorry, we don't have flights available for the route {origin} → {destination}."
+        
+        elif action == 'book_new':
+            # Reset session for new booking
+            session.reset_session()
+            session.set_state(ConversationState.GREETING)
+            return """✈️ *New Flight Booking*
+
+Perfect! Let's start a fresh booking for you.
+
+Tell me where you'd like to travel:
+• "Flight from Delhi to Mumbai tomorrow"
+• "Need to go to Dubai next week"
+• "Traveling to London for business"
+
+*Where would you like to go?* 🛫"""
+        
+        elif action == 'compare_prices':
+            price_comparison = session.get_context('price_comparison')
+            if not price_comparison or not price_comparison.get('comparison_available'):
+                return "❌ Price comparison not available for this route."
+            
+            # Detailed price comparison with safe data access
+            comp = price_comparison
+            ticket_price = comp.get('ticket_price', 0)
+            best_system_price = comp.get('best_system_price', 0)
+            price_difference = comp.get('price_difference', 0)
+            savings_percentage = comp.get('savings_percentage', 0)
+            
+            # Ensure all values are numeric and safe
+            try:
+                ticket_price = float(ticket_price) if ticket_price else 0
+                best_system_price = float(best_system_price) if best_system_price else 0
+                price_difference = float(price_difference) if price_difference else 0
+                savings_percentage = float(savings_percentage) if savings_percentage else 0
+            except (ValueError, TypeError):
+                return "❌ Error in price comparison data. Please try uploading your ticket again."
+            
+            message = f"""💰 *Detailed Price Comparison*
+
+📋 *Your Ticket Details:*
+✈️ {flight_details.get('airline', 'Unknown')} {flight_details.get('flight_number', 'N/A')}
+📍 {flight_details.get('origin_city', 'Unknown')} → {flight_details.get('destination_city', 'Unknown')}
+📅 {flight_details.get('departure_date', 'N/A')}
+💰 Price: ₹{int(ticket_price):,}
+
+🏷️ *Our System Comparison:*
+💰 Best Available Price: ₹{int(best_system_price):,}
+📊 Price Difference: ₹{int(abs(price_difference)):,}"""
+            
+            if comp.get('recommendation') == 'cheaper' and price_difference > 0:
+                message += f"\n\n💸 *Potential Savings: ₹{int(abs(price_difference)):,}*"
+                message += f"\n✨ You could save {savings_percentage}% by booking with us!"
+            elif comp.get('recommendation') == 'similar':
+                message += f"\n\n✅ Your price is competitive! Only ±₹{abs(price_difference):,} difference."
+            else:
+                message += f"\n\n📈 Your ticket cost ₹{abs(price_difference):,} more than our best price."
+            
+            message += "\n\n🔍 *Want to see available flights?*\nType '*search similar*' to explore options!"
+            
+            return message
+        
+        elif action == 'book_exact':
+            return f"""🎫 *Book Exact Flight*
+
+Your ticket details:
+✈️ {flight_details.get('airline')} {flight_details.get('flight_number')}
+📍 {flight_details.get('origin_city')} → {flight_details.get('destination_city')}
+📅 {flight_details.get('departure_date')}
+
+❌ *Sorry, we cannot book the exact same flight* as it may be:
+• Already departed
+• From a different booking system
+• Not available in our inventory
+
+🔄 *Instead, try:*
+• Type '*search similar*' for flights on the same route
+• Type '*book new flight*' to start fresh booking
+
+*How can I help you?* ✈️"""
+        
+        elif action == 'book_with_better_price':
+            # Check if we have price comparison data and can offer better price
+            price_comparison = session.get_context('price_comparison')
+            if not price_comparison or not price_comparison.get('comparison_available'):
+                return """❌ *Cannot proceed with booking*
+
+Price comparison is not available for your ticket route. Please try:
+• Type '*search similar*' to find available flights
+• Type '*book new flight*' to start a new booking
+
+*How can I help you?* ✈️"""
+            
+            # Check if we actually have a better price
+            if price_comparison.get('recommendation') != 'cheaper':
+                return f"""💰 *Price Check*
+
+Based on our comparison, our system shows:
+📋 *Your Ticket:* ₹{price_comparison.get('ticket_price', 0):,}
+🏷️ *Our Best Price:* ₹{price_comparison.get('best_system_price', 0):,}
+
+{price_comparison.get('recommendation', 'similar').title()} pricing detected. Would you still like to book with us?
+
+• Type '*search similar*' to see available options
+• Type '*book new flight*' to start fresh booking
+
+*How can I help you?* ✈️"""
+            
+            # We have a better price, proceed to collect office ID
+            savings_amount = abs(price_comparison.get('price_difference', 0))
+            savings_percentage = price_comparison.get('savings_percentage', 0)
+            
+            session.set_state(ConversationState.COLLECT_OFFICE_ID)
+            
+            return f"""💸 *Great! Let's book with better pricing*
+
+✅ *Savings Available:* ₹{savings_amount:,} ({savings_percentage}%)
+🏷️ *New Price:* ₹{price_comparison.get('best_system_price', 0):,}
+
+To proceed with the booking, I need your *Office ID* for the ticket:
+
+📝 *Please provide your Office ID:*
+Example: "OFF123456" or "CORP-001"
+
+*Enter your Office ID:*"""
+
+        return "❌ Unknown action. Try 'search similar', 'book new flight', or 'compare prices'."
+    
+    def _handle_office_id_collection(self, session: ConversationSession, message: str) -> str:
+        """Handle office ID collection for ticket booking"""
+        office_id = message.strip()
+        
+        # Validate office ID format (basic validation)
+        if len(office_id) < 3:
+            return """❌ *Invalid Office ID*
+
+Please provide a valid Office ID (minimum 3 characters):
+Examples: "OFF123456", "CORP-001", "HQ-MUMBAI"
+
+*Enter your Office ID:*"""
+        
+        # Store office ID in session
+        session.set_data('office_id', office_id)
+        
+        # Get ticket details and price comparison for booking
+        ticket_info = session.get_context('parsed_ticket')
+        price_comparison = session.get_context('price_comparison')
+        
+        if not ticket_info or not price_comparison:
+            session.set_state(ConversationState.COMPLETED)
+            return """❌ *Booking Error*
+
+Sorry, ticket information is no longer available. Please:
+• Upload your ticket again
+• Type '*book new flight*' to start fresh
+
+*How can I help you?* ✈️"""
+        
+        # Process the booking and generate new PDF
+        return self._process_ticket_rebooking(session, ticket_info, price_comparison, office_id)
+    
+    def _process_ticket_rebooking(self, session: ConversationSession, ticket_info: dict, price_comparison: dict, office_id: str) -> str:
+        """Process ticket rebooking with new office ID and generate PDF"""
+        try:
+            from services.pdf_generator_service import PDFGeneratorService
+            
+            # Get flight details from parsed ticket
+            flight_details = ticket_info.get('flight_details', {})
+            
+            # Create new booking data with better price
+            new_booking_data = {
+                'pnr': self._generate_pnr(),
+                'airline': flight_details.get('airline'),
+                'flight_number': flight_details.get('flight_number'),
+                'origin_city': flight_details.get('origin_city'),
+                'origin_airport': flight_details.get('origin_airport'),
+                'destination_city': flight_details.get('destination_city'),
+                'destination_airport': flight_details.get('destination_airport'),
+                'departure_date': flight_details.get('departure_date'),
+                'departure_time': flight_details.get('departure_time'),
+                'arrival_time': flight_details.get('arrival_time'),
+                'class_of_service': flight_details.get('class_of_service', 'Economy'),
+                'passenger_name': flight_details.get('passenger_name'),
+                'ticket_price': price_comparison.get('best_system_price'),
+                'currency': 'INR',
+                'office_id': office_id,
+                'booking_date': datetime.now().strftime('%Y-%m-%d'),
+                'booking_time': datetime.now().strftime('%H:%M')
+            }
+            
+            # Generate new PDF ticket
+            pdf_generator = PDFGeneratorService()
+            pdf_path = pdf_generator.generate_ticket_pdf(new_booking_data)
+            
+            if not pdf_path:
+                raise Exception("Failed to generate PDF ticket")
+            
+            # Update session state
+            session.set_state(ConversationState.COMPLETED)
+            session.set_data('new_booking', new_booking_data)
+            session.set_data('pdf_path', pdf_path)
+            
+            # Calculate savings
+            savings_amount = abs(price_comparison.get('price_difference', 0))
+            savings_percentage = price_comparison.get('savings_percentage', 0)
+            
+            # Send the PDF via WhatsApp
+            pdf_caption = f"✈️ New Flight Ticket - PNR: {new_booking_data['pnr']}"
+            pdf_sent = self.whatsapp_service.send_pdf_document(
+                session.phone_number, 
+                pdf_path, 
+                pdf_caption
+            )
+            
+            if not pdf_sent:
+                logger.warning(f"Failed to send PDF to {session.phone_number}")
+            
+            # Clean up PDF file after sending
+            try:
+                pdf_generator.cleanup_ticket_file(pdf_path)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup PDF file: {e}")
+            
+            return f"""🎫 *BOOKING CONFIRMED!*
+
+📋 *New PNR:* {new_booking_data['pnr']}
+✈️ *Flight:* {new_booking_data['airline']} {new_booking_data['flight_number']}
+📍 *Route:* {new_booking_data['origin_city']} → {new_booking_data['destination_city']}
+📅 *Date:* {new_booking_data['departure_date']}
+🎫 *Class:* {new_booking_data['class_of_service']}
+👤 *Passenger:* {new_booking_data['passenger_name']}
+🏢 *Office ID:* {office_id}
+
+💰 *Pricing:*
+🔴 *Previous Price:* ₹{price_comparison.get('ticket_price', 0):,}
+🟢 *New Price:* ₹{new_booking_data['ticket_price']:,}
+💸 *You Saved:* ₹{savings_amount:,} ({savings_percentage}%)
+
+📄 *New ticket PDF {"sent successfully!" if pdf_sent else "generation completed!"}*
+
+✅ *Thank you for booking with us!*
+
+*Need anything else? Type 'book flight' for a new booking* ✈️"""
+            
+        except Exception as e:
+            logger.error(f"Error processing ticket rebooking: {e}")
+            session.set_state(ConversationState.COMPLETED)
+            return """❌ *Booking Failed*
+
+Sorry, there was an issue processing your booking. Please try:
+• Upload your ticket again
+• Type '*book new flight*' to start fresh
+• Contact support for assistance
+
+*How can I help you?* ✈️"""
+    
+    def _generate_pnr(self) -> str:
+        """Generate a random PNR for new booking"""
+        import random
+        import string
+        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     
     def _offer_human_support(self, session: ConversationSession) -> str:
         """Offer human support when bot reaches retry limit"""

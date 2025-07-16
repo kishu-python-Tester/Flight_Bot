@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Dict, List, Optional
 from config.settings import Config
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ class WhatsAppService:
                 return None
             
             message = messages[0]
+            message_type = message.get('type')
             
             # Extract contact info
             contacts = value.get('contacts', [])
@@ -157,15 +159,35 @@ class WhatsAppService:
                 profile = contacts[0].get('profile', {})
                 contact_name = profile.get('name', '')
             
-            return {
+            # Base message data
+            message_data = {
                 'phone_number': message.get('from'),
                 'message_id': message.get('id'),
                 'timestamp': message.get('timestamp'),
-                'type': message.get('type'),
-                'text': message.get('text', {}).get('body', '') if message.get('type') == 'text' else '',
+                'type': message_type,
+                'text': '',
                 'interactive': message.get('interactive', {}),
                 'contact_name': contact_name
             }
+            
+            # Handle different message types
+            if message_type == 'text':
+                message_data['text'] = message.get('text', {}).get('body', '')
+            elif message_type == 'document':
+                # Handle document uploads (PDFs)
+                document = message.get('document', {})
+                message_data.update({
+                    'document': {
+                        'id': document.get('id'),
+                        'filename': document.get('filename', 'document'),
+                        'mime_type': document.get('mime_type'),
+                        'sha256': document.get('sha256'),
+                        'caption': document.get('caption', '')
+                    }
+                })
+                message_data['text'] = document.get('caption', '')  # Use caption as text
+            
+            return message_data
             
         except Exception as e:
             logger.error(f"Error extracting message from webhook: {e}")
@@ -191,11 +213,21 @@ class WhatsAppService:
         }]
         
         for i, flight in enumerate(flights[:10], 1):  # Limit to 10 options
-            row = {
-                "id": f"flight_{i}",
-                "title": f"{flight.airline} - ₹{flight.price:,}",
-                "description": f"{flight.departure_time} → {flight.arrival_time} ({flight.duration})"
-            }
+            # Handle both Flight objects and dictionaries
+            if hasattr(flight, 'airline'):
+                # Flight object
+                row = {
+                    "id": f"flight_{i}",
+                    "title": f"{flight.airline} - ₹{flight.price:,}",
+                    "description": f"{flight.departure_time} → {flight.arrival_time} ({flight.duration})"
+                }
+            else:
+                # Dictionary
+                row = {
+                    "id": f"flight_{i}",
+                    "title": f"{flight['airline']} - ₹{flight['price']:,}",
+                    "description": f"{flight['departure_time']} → {flight['arrival_time']} ({flight['duration']})"
+                }
             sections[0]["rows"].append(row)
         
         return sections
@@ -288,11 +320,145 @@ I'm here to help you book flights quickly and easily. Just tell me where you wan
             'booking_failed': "❌ Booking failed. Please try again or contact support.",
             'city_not_found': "🏙️ City not found. Please check spelling or try a major city nearby.",
             'invalid_date': "📅 Invalid date. Please provide a future date.",
-            'passenger_limit': "👥 Passenger limit exceeded. Maximum 9 passengers allowed."
+            'passenger_limit': "👥 Passenger limit exceeded. Maximum 9 passengers allowed.",
+            'invalid_pdf': "📄 Invalid PDF file. Please upload a valid flight ticket in PDF format.",
+            'pdf_parsing_failed': "❌ Unable to read your ticket. Please try uploading a clearer PDF file."
         }
         
         message = error_messages.get(error_type, error_messages['general'])
         return self.send_text_message(phone_number, message)
+    
+    def download_media_file(self, media_id: str) -> Optional[bytes]:
+        """Download media file from WhatsApp by media ID"""
+        try:
+            # Get media URL
+            media_url_endpoint = f"https://graph.facebook.com/v18.0/{media_id}"
+            
+            headers = {
+                'Authorization': f'Bearer {self.access_token}'
+            }
+            
+            # Get media URL
+            response = requests.get(media_url_endpoint, headers=headers)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to get media URL: {response.status_code} - {response.text}")
+                return None
+            
+            media_data = response.json()
+            media_download_url = media_data.get('url')
+            
+            if not media_download_url:
+                logger.error("No download URL found in media response")
+                return None
+            
+            # Download the actual file
+            download_response = requests.get(media_download_url, headers=headers)
+            
+            if download_response.status_code == 200:
+                logger.info(f"Successfully downloaded media file: {media_id}")
+                return download_response.content
+            else:
+                logger.error(f"Failed to download media: {download_response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error downloading media file: {e}")
+            return None
+    
+    def is_pdf_document(self, document_info: Dict) -> bool:
+        """Check if the uploaded document is a PDF"""
+        mime_type = document_info.get('mime_type', '')
+        filename = document_info.get('filename', '')
+        
+        return (mime_type == 'application/pdf' or 
+                filename.lower().endswith('.pdf'))
+    
+    def send_pdf_processing_message(self, phone_number: str) -> bool:
+        """Send message indicating PDF is being processed"""
+        message = """📄 *PDF Ticket Received!*
+
+🔄 *Processing your flight ticket...*
+⏳ *This may take a few seconds*
+
+I'll extract your flight details and compare prices with our system! ✈️"""
+        
+        return self.send_text_message(phone_number, message)
+
+    def send_pdf_document(self, phone_number: str, pdf_path: str, caption: str = "") -> bool:
+        """Send PDF document via WhatsApp"""
+        try:
+            # First, upload the media to WhatsApp
+            media_id = self._upload_media_file(pdf_path)
+            if not media_id:
+                logger.error("Failed to upload PDF to WhatsApp")
+                return False
+            
+            # Send document message
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": phone_number,
+                "type": "document",
+                "document": {
+                    "id": media_id,
+                    "caption": caption,
+                    "filename": os.path.basename(pdf_path)
+                }
+            }
+            
+            response = requests.post(
+                self.api_url,
+                headers=self.headers,
+                data=json.dumps(payload)
+            )
+            
+            if response.status_code == 200:
+                logger.info(f"PDF document sent successfully to {phone_number}")
+                return True
+            else:
+                logger.error(f"Failed to send PDF document: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error sending PDF document: {e}")
+            return False
+    
+    def _upload_media_file(self, file_path: str) -> Optional[str]:
+        """Upload media file to WhatsApp and get media ID"""
+        try:
+            upload_url = f"https://graph.facebook.com/v18.0/{Config.WHATSAPP_PHONE_NUMBER_ID}/media"
+            
+            headers = {
+                'Authorization': f'Bearer {self.access_token}'
+            }
+            
+            # Determine MIME type
+            mime_type = 'application/pdf'
+            if file_path.lower().endswith('.pdf'):
+                mime_type = 'application/pdf'
+            
+            with open(file_path, 'rb') as file:
+                files = {
+                    'file': (os.path.basename(file_path), file, mime_type)
+                }
+                data = {
+                    'messaging_product': 'whatsapp'
+                }
+                
+                response = requests.post(upload_url, headers=headers, files=files, data=data)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    media_id = result.get('id')
+                    logger.info(f"Media uploaded successfully: {media_id}")
+                    return media_id
+                else:
+                    logger.error(f"Failed to upload media: {response.status_code} - {response.text}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error uploading media file: {e}")
+            return None
 
 # Mock WhatsApp service for testing without actual WhatsApp API
 class MockWhatsAppService(WhatsAppService):

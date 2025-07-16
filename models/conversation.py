@@ -14,6 +14,7 @@ class ConversationState(Enum):
     COLLECT_PASSENGER_DETAILS = "collect_passenger_details"
     COLLECT_SSR = "collect_ssr"
     CONFIRM_BOOKING = "confirm_booking"
+    COLLECT_OFFICE_ID = "collect_office_id"
     COMPLETED = "completed"
 
 class ConversationSession:

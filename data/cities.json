@@ -71,6 +71,18 @@
       "iata": "BKK",
       "country": "Thailand",
       "aliases": ["bkk"]
+    },
+    "jaipur": {
+      "name": "Jaipur",
+      "iata": "JAI",
+      "country": "India",
+      "aliases": ["jai", "jaipur", "pink city"]
+    },
+    "abu_dhabi": {
+      "name": "Abu Dhabi",
+      "iata": "ZVJ",
+      "country": "UAE",
+      "aliases": ["zvj", "abu dhabi", "abudhabi", "abu_dhabi"]
     }
   }
 } 
